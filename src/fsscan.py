@@ -2,6 +2,47 @@ import os
 import stat
 import hashlib
 
+def get_file_extension(file_name: str) -> str | None:
+    """
+    Parses a file name and returns its extension without the leading dot.
+
+    Args:
+        file_name: The name of the file (e.g., "document.txt", "archive.tar.gz").
+
+    Returns:
+        The file extension without the leading dot (e.g., "txt", "gz").
+        Returns an empty string if the file has no extension or
+        if the file name starts with a dot and has no other dots (e.g., ".bashrc" would return "").
+        Returns the part after the last dot if multiple dots are present (e.g., "archive.tar.gz" returns "gz").
+    """
+    if not isinstance(file_name, str):
+        raise TypeError("Input must be a string.")
+
+    # os.path.splitext splits the path into a pair (root, ext)
+    # For example, splitext("mydoc.txt") returns ("mydoc", ".txt")
+    # If there's no dot, or if it's the first character, ext will be empty.
+    # e.g. splitext("nodot") -> ("nodot", "")
+    # e.g. splitext(".bashrc") -> (".bashrc", "") - special case for dotfiles
+    # e.g. splitext("archive.tar.gz") -> ("archive.tar", ".gz")
+    root, extension_with_dot = os.path.splitext(file_name)
+
+    # Handle cases like ".bashrc" where splitext returns (".bashrc", "")
+    # In such cases, we consider it as having no extension part to return.
+    # However, if the filename is just "." or "..", it should also have no extension.
+    if not extension_with_dot and file_name.startswith('.') and file_name != '.' and file_name != '..':
+        # If the original filename started with a dot and splitext returned an empty extension,
+        # it means it was a "dotfile" without a further extension part (e.g., ".bashrc").
+        # We want to return "" in this case, not "bashrc".
+        # If we simply sliced extension_with_dot[1:], it would be an error on empty string.
+        return None
+
+    # If an extension exists (e.g., ".txt"), return it without the leading dot.
+    if extension_with_dot:
+        return extension_with_dot[1:]
+    else:
+        # No extension found (e.g., "filename" or "filename.")
+        return None
+
 def get_file_size_in_bytes(file_path):
     """
     Calculates the size of a file in bytes.
@@ -146,7 +187,7 @@ def get_folder_tree(root_folder_path):
         except OSError as e:
             # Handle cases like permission denied for os.stat()
             print(f"Warning: Could not get permissions for {item_path}: {e}")
-            return "?????????? (Permission denied or error)"
+            return "Permission denied or error"
 
     def _build_tree_recursive(current_dir_path, base_path, tree_nodes = None):
         """
@@ -168,6 +209,7 @@ def get_folder_tree(root_folder_path):
                 checksum = calculate_file_checksum(full_path)
                 content = read_file_to_string(full_path)
                 filesize = get_file_size_in_bytes(full_path)
+                extension = get_file_extension(item_name)
 
                 node = {
                     "name": item_name,
@@ -176,6 +218,7 @@ def get_folder_tree(root_folder_path):
                     "permissions": permissions,
                     "checksum": checksum,
                     "size": filesize,
+                    "extension": extension,
                     "content": content
                 }
 
@@ -214,84 +257,3 @@ def get_folder_tree(root_folder_path):
     return _build_tree_recursive(abs_root_path, abs_root_path)
 
 
-if __name__ == '__main__':
-    #dirs = print_directory_tree("./test_dir")
-    #print(f"{dirs}")
-
-    folder_structure = get_folder_tree("test_dir")
-    if folder_structure is not None:
-        import json
-        print(json.dumps(folder_structure, indent=2))
-
-    # --- Example Usage ---
-
-    # Create a dummy directory structure for testing
-    # if not os.path.exists("test_dir"):
-    #     os.makedirs("test_dir/subdir1/subsubdir1")
-    #     os.makedirs("test_dir/subdir2")
-    #
-    #     with open("test_dir/file1.txt", "w") as f:
-    #         f.write("Hello from file1")
-    #     # Make one file executable (on Unix-like systems)
-    #     try:
-    #         os.chmod("test_dir/file1.txt", 0o755)
-    #     except Exception:  # chmod might not work on all OS or have permission
-    #         pass
-    #
-    #     with open("test_dir/subdir1/file2.py", "w") as f:
-    #         f.write("# Python file")
-    #
-    #     with open("test_dir/subdir1/subsubdir1/file3.md", "w") as f:
-    #         f.write("## Markdown")
-    #
-    #     with open("test_dir/subdir2/file4.json", "w") as f:
-    #         f.write('{"key": "value"}')
-    #
-    #     # Create a file with restricted permissions for testing error handling
-    #     # This might require specific OS/user privileges to test fully
-    #     restricted_file_path = "test_dir/restricted_file.txt"
-    #     with open(restricted_file_path, "w") as f:
-    #         f.write("Restricted content")
-    #     try:
-    #         os.chmod(restricted_file_path, 0o000)  # No permissions
-    #     except OSError:
-    #         print(f"Could not set restricted permissions on {restricted_file_path}, test might be partial.")
-    #
-    #     # Create a directory with restricted permissions
-    #     restricted_dir_path = "test_dir/restricted_subdir"
-    #     os.makedirs(restricted_dir_path, exist_ok=True)
-    #     try:
-    #         os.chmod(restricted_dir_path, 0o000)  # No permissions to list contents
-    #     except OSError:
-    #         print(f"Could not set restricted permissions on {restricted_dir_path}, test might be partial.")
-    #
-    # print("--- Testing with 'test_dir' ---")
-    # folder_structure = get_folder_tree("test_dir")
-    #
-    # if folder_structure is not None:
-    #     import json  # For pretty printing the output
-    #
-    #     print(json.dumps(folder_structure, indent=2))
-    #
-    # print("\n--- Testing with a non-existent path ---")
-    # get_folder_tree("non_existent_folder_xyz123")
-    #
-    # print("\n--- Testing with a file path (should fail) ---")
-    # if os.path.exists("test_dir/file1.txt"):
-    #     get_folder_tree("test_dir/file1.txt")
-    # else:
-    #     print("Skipping file path test as test_dir/file1.txt does not exist.")
-
-    # --- Clean up dummy directory (optional) ---
-    # import shutil
-    # if os.path.exists("test_dir"):
-    #     # Reset permissions to allow deletion if they were restricted
-    #     try:
-    #         if os.path.exists("test_dir/restricted_file.txt"):
-    #             os.chmod("test_dir/restricted_file.txt", 0o600)
-    #         if os.path.exists("test_dir/restricted_subdir"):
-    #              os.chmod("test_dir/restricted_subdir", 0o700)
-    #     except OSError as e:
-    #         print(f"Could not reset permissions for cleanup: {e}")
-    #     shutil.rmtree("test_dir")
-    #     print("\nCleaned up test_dir.")
